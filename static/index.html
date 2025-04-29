@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Picture Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 text-gray-800 min-h-screen">
+    <div class="container mx-auto px-4 py-6">
+        <h1 class="text-3xl font-bold mb-6 text-center">📷 Picture Manager</h1>
+
+        <!-- Upload Form -->
+        <form id="uploadForm"
+            class="bg-white p-6 rounded-lg shadow-md mb-8 flex flex-col sm:flex-row items-center gap-4">
+            <input type="file" name="picture" accept="image/*" required
+                class="block w-full sm:w-auto border rounded px-3 py-2" />
+            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Upload</button>
+        </form>
+
+        <!-- Picture List -->
+        <div id="gallery" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6"></div>
+    </div>
+
+    <script>
+        const form = document.getElementById("uploadForm");
+        const gallery = document.getElementById("gallery");
+
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            const res = await fetch("/upload-picture", {
+                method: "POST",
+                body: formData,
+            });
+            alert(await res.text());
+            form.reset();
+            loadPictures();
+        });
+
+        async function loadPictures() {
+            gallery.innerHTML = "";
+            const res = await fetch("/list-pictures");
+            const files = await res.json();
+            for (const file of files) {
+                const card = document.createElement("div");
+                card.className = "bg-white rounded-lg shadow-md overflow-hidden";
+
+                const img = document.createElement("img");
+                img.src = "/pictures/" + file;
+                img.alt = file;
+                img.className = "w-full h-48 object-cover";
+
+                const footer = document.createElement("div");
+                footer.className = "p-4 flex justify-between items-center";
+
+                const name = document.createElement("span");
+                name.className = "text-sm truncate";
+                name.textContent = file;
+
+                const delBtn = document.createElement("button");
+                delBtn.textContent = "🗑 Delete";
+                delBtn.className = "text-red-600 hover:underline text-sm";
+                delBtn.onclick = async () => {
+                    const res = await fetch("/delete-picture?name=" + encodeURIComponent(file), {
+                        method: "DELETE",
+                    });
+                    alert(await res.text());
+                    loadPictures();
+                };
+
+                footer.append(name, delBtn);
+                card.append(img, footer);
+                gallery.append(card);
+            }
+        }
+
+        loadPictures();
+    </script>
+</body>
+
+</html>
