@@ -6,6 +6,53 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Picture Manager</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Toast container styles */
+        #toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        /* Toast animation */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            to {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+        }
+
+        .toast {
+            animation: fadeIn 0.3s ease-out forwards;
+            min-width: 250px;
+            max-width: 350px;
+        }
+
+        .toast.hiding {
+            animation: fadeOut 0.3s ease-in forwards;
+        }
+    </style>
 </head>
 
 <body class="bg-gray-100 text-gray-800 min-h-screen">
@@ -25,56 +72,166 @@
         <div id="gallery" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6"></div>
     </div>
 
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
     <script>
         const form = document.getElementById("uploadForm");
         const gallery = document.getElementById("gallery");
+        const toastContainer = document.getElementById("toast-container");
+
+        // Toast notification function
+        function showToast(message, type = 'info') {
+            const toast = document.createElement("div");
+
+            // Set appropriate styles based on type
+            let bgColor, textColor, icon;
+            switch (type) {
+                case 'success':
+                    bgColor = 'bg-green-500';
+                    textColor = 'text-white';
+                    icon = '✅';
+                    break;
+                case 'error':
+                    bgColor = 'bg-red-500';
+                    textColor = 'text-white';
+                    icon = '❌';
+                    break;
+                case 'info':
+                default:
+                    bgColor = 'bg-blue-500';
+                    textColor = 'text-white';
+                    icon = 'ℹ️';
+            }
+
+            toast.className = `toast ${bgColor} ${textColor} p-4 rounded-lg shadow-lg flex items-start`;
+            toast.innerHTML = `
+                <div class="mr-2">${icon}</div>
+                <div class="flex-1">${message}</div>
+                <button class="ml-2 text-white hover:text-gray-200">×</button>
+            `;
+
+            // Add to container
+            toastContainer.appendChild(toast);
+
+            // Close button functionality
+            const closeButton = toast.querySelector('button');
+            closeButton.addEventListener('click', () => {
+                removeToast(toast);
+            });
+
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                removeToast(toast);
+            }, 5000);
+        }
+
+        function removeToast(toast) {
+            // Add hiding class for animation
+            toast.classList.add('hiding');
+
+            // Remove from DOM after animation completes
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }
 
         form.addEventListener("submit", async (e) => {
             e.preventDefault();
             const formData = new FormData(form);
-            const res = await fetch("/upload-picture", {
-                method: "POST",
-                body: formData,
-            });
-            alert(await res.text());
-            form.reset();
-            loadPictures();
+            try {
+                const res = await fetch("/upload-picture", {
+                    method: "POST",
+                    body: formData,
+                });
+
+                if (res.ok) {
+                    showToast(await res.text(), 'success');
+                } else {
+                    showToast(`Upload failed: ${await res.text()}`, 'error');
+                }
+
+                form.reset();
+                loadPictures();
+            } catch (err) {
+                showToast(`Error: ${err.message}`, 'error');
+            }
         });
 
         async function loadPictures() {
             gallery.innerHTML = "";
-            const res = await fetch("/list-pictures");
-            const files = await res.json();
-            for (const file of files) {
-                const card = document.createElement("div");
-                card.className = "bg-white rounded-lg shadow-md overflow-hidden";
+            try {
+                const res = await fetch("/list-pictures");
+                const files = await res.json();
 
-                const img = document.createElement("img");
-                img.src = "/pictures/" + file;
-                img.alt = file;
-                img.className = "w-full h-48 object-cover";
+                for (const file of files) {
+                    const card = document.createElement("div");
+                    card.className = "bg-white rounded-lg shadow-md overflow-hidden";
 
-                const footer = document.createElement("div");
-                footer.className = "p-4 flex justify-between items-center";
+                    const img = document.createElement("img");
+                    img.src = "/pictures/" + file;
+                    img.alt = file;
+                    img.className = "w-full h-48 object-cover";
 
-                const name = document.createElement("span");
-                name.className = "text-sm truncate";
-                name.textContent = file;
+                    const footer = document.createElement("div");
+                    footer.className = "p-4 flex justify-between items-center";
 
-                const delBtn = document.createElement("button");
-                delBtn.textContent = "🗑 Delete";
-                delBtn.className = "text-red-600 hover:underline text-sm";
-                delBtn.onclick = async () => {
-                    const res = await fetch("/delete-picture?name=" + encodeURIComponent(file), {
-                        method: "DELETE",
-                    });
-                    alert(await res.text());
-                    loadPictures();
-                };
+                    const name = document.createElement("span");
+                    name.className = "text-sm truncate";
+                    name.textContent = file;
 
-                footer.append(name, delBtn);
-                card.append(img, footer);
-                gallery.append(card);
+                    const buttonContainer = document.createElement("div");
+                    buttonContainer.className = "flex gap-2";
+
+                    const displayBtn = document.createElement("button");
+                    displayBtn.textContent = "📺 Display";
+                    displayBtn.className = "text-blue-600 hover:underline text-sm";
+                    displayBtn.onclick = async () => {
+                        try {
+                            const res = await fetch("/display-picture?name=" + encodeURIComponent(file), {
+                                method: "GET",
+                            });
+                            const message = await res.text();
+                            showToast(message, 'info');
+                        } catch (err) {
+                            showToast(`Error: ${err.message}`, 'error');
+                        }
+                    };
+
+                    const delBtn = document.createElement("button");
+                    delBtn.textContent = "🗑 Delete";
+                    delBtn.className = "text-red-600 hover:underline text-sm";
+                    delBtn.onclick = async () => {
+                        try {
+                            const res = await fetch("/delete-picture?name=" + encodeURIComponent(file), {
+                                method: "DELETE",
+                            });
+
+                            if (res.ok) {
+                                showToast(await res.text(), 'success');
+                                loadPictures();
+                            } else {
+                                showToast(`Delete failed: ${await res.text()}`, 'error');
+                            }
+                        } catch (err) {
+                            showToast(`Error: ${err.message}`, 'error');
+                        }
+                    };
+
+                    buttonContainer.append(displayBtn, delBtn);
+                    footer.append(name, buttonContainer);
+                    card.append(img, footer);
+                    gallery.append(card);
+                }
+
+                if (files.length === 0) {
+                    gallery.innerHTML = `<div class="col-span-full text-center text-gray-500 py-12">No pictures found. Upload some!</div>`;
+                }
+            } catch (err) {
+                showToast(`Error loading pictures: ${err.message}`, 'error');
+                gallery.innerHTML = `<div class="col-span-full text-center text-red-500 py-12">Failed to load pictures</div>`;
             }
         }
 
