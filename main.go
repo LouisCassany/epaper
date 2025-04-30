@@ -175,7 +175,9 @@ func displayPictureHandler(w http.ResponseWriter, r *http.Request) {
 	// Print the path to the server logs
 	log.Printf("Displaying picture: %s", absPath)
 
-	pythonPath := "/home/louis/.virtualenvs/pimoroni/bin/python"
+	// pythonPath := "/home/louis/.virtualenvs/pimoroni/bin/python"
+	pythonPath := "/usr/bin/python3"
+
 	scriptPath := "./static/image.py"
 
 	cmd := exec.Command(pythonPath, scriptPath, "--file", picturePath)
@@ -185,6 +187,5 @@ func displayPictureHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return a success message to the client
-	w.Write([]byte("Picture path: " + absPath))
+	w.Write([]byte("Display successful"))
 }

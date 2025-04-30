@@ -52,6 +52,28 @@
         .toast.hiding {
             animation: fadeOut 0.3s ease-in forwards;
         }
+
+        /* Spinner animation */
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .spinner {
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid currentColor;
+            border-radius: 50%;
+            border-right-color: transparent;
+            margin-right: 0.25rem;
+        }
     </style>
 </head>
 
@@ -186,9 +208,18 @@
                     buttonContainer.className = "flex gap-2";
 
                     const displayBtn = document.createElement("button");
-                    displayBtn.textContent = "📺 Display";
+                    displayBtn.innerHTML = `<span>📺 Display</span>`;
                     displayBtn.className = "text-blue-600 hover:underline text-sm";
                     displayBtn.onclick = async () => {
+                        // Prevent button from being clicked again while processing
+                        if (displayBtn.disabled) return;
+
+                        // Add spinner and disable button
+                        displayBtn.disabled = true;
+                        const originalContent = displayBtn.innerHTML;
+                        displayBtn.innerHTML = `<span class="spinner"></span><span>Processing...</span>`;
+                        displayBtn.classList.add("opacity-70");
+
                         try {
                             const res = await fetch("/display-picture?name=" + encodeURIComponent(file), {
                                 method: "GET",
@@ -197,6 +228,11 @@
                             showToast(message, 'info');
                         } catch (err) {
                             showToast(`Error: ${err.message}`, 'error');
+                        } finally {
+                            // Restore button state
+                            displayBtn.disabled = false;
+                            displayBtn.innerHTML = originalContent;
+                            displayBtn.classList.remove("opacity-70");
                         }
                     };
 
