@@ -175,8 +175,7 @@ func displayPictureHandler(w http.ResponseWriter, r *http.Request) {
 	// Print the path to the server logs
 	log.Printf("Displaying picture: %s", absPath)
 
-	// pythonPath := "/home/louis/.virtualenvs/pimoroni/bin/python"
-	pythonPath := "/usr/bin/python3"
+	pythonPath := "/home/louis/.virtualenvs/pimoroni/bin/python"
 
 	scriptPath := "./static/image.py"
 

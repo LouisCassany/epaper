@@ -86,7 +86,7 @@
             class="bg-white p-6 rounded-lg shadow-md mb-8 flex flex-col sm:flex-row items-center gap-4">
             <input type="file" name="picture" accept="image/*" required
                 class="block w-full sm:w-auto border rounded px-3 py-2" />
-            <button type="submit"
+            <button id="uploadButton" type="submit"
                 class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full sm:max-w-xs">Upload</button>
         </form>
 
@@ -99,6 +99,7 @@
 
     <script>
         const form = document.getElementById("uploadForm");
+        const uploadButton = document.getElementById("uploadButton");
         const gallery = document.getElementById("gallery");
         const toastContainer = document.getElementById("toast-container");
 
@@ -163,6 +164,13 @@
         form.addEventListener("submit", async (e) => {
             e.preventDefault();
             const formData = new FormData(form);
+
+            // Disable button and show spinner
+            const originalButtonText = uploadButton.textContent;
+            uploadButton.disabled = true;
+            uploadButton.innerHTML = `<span class="spinner"></span><span>Uploading...</span>`;
+            uploadButton.classList.add("opacity-70");
+
             try {
                 const res = await fetch("/upload-picture", {
                     method: "POST",
@@ -179,6 +187,11 @@
                 loadPictures();
             } catch (err) {
                 showToast(`Error: ${err.message}`, 'error');
+            } finally {
+                // Restore button state
+                uploadButton.disabled = false;
+                uploadButton.innerHTML = originalButtonText;
+                uploadButton.classList.remove("opacity-70");
             }
         });
 
