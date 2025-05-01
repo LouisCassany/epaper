@@ -51,7 +51,7 @@ func main() {
 
 // listPicturesHandler returns a list of all pictures in the pictures directory
 func listPicturesHandler(w http.ResponseWriter, r *http.Request) {
-	picturesDir := "./static/pictures"
+	picturesDir := "./static"
 	entries, err := os.ReadDir(picturesDir)
 	if err != nil {
 		http.Error(w, "Failed to read pictures directory", http.StatusInternalServerError)
@@ -101,7 +101,7 @@ func uploadPictureHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Save the processed image
-	dstPath := filepath.Join("static", "pictures", filepath.Base(handler.Filename))
+	dstPath := filepath.Join("static", filepath.Base(handler.Filename))
 	if err := imaging.Save(processedImage, dstPath); err != nil {
 		http.Error(w, "Failed to save image", http.StatusInternalServerError)
 		return
@@ -158,7 +158,7 @@ func deletePictureHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p := filepath.Join("static", "pictures", filepath.Base(name))
+	p := filepath.Join("static", filepath.Base(name))
 	if err := os.Remove(p); err != nil {
 		http.Error(w, "Failed to delete file", http.StatusInternalServerError)
 		return
@@ -180,13 +180,21 @@ func displayPictureHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := displayPicture(name); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Write([]byte("Display successful"))
+}
+
+func displayPicture(name string) error {
 	// Create the full path to the picture
-	picturePath := filepath.Join("static", "pictures", filepath.Base(name))
+	picturePath := filepath.Join("static", filepath.Base(name))
 
 	absPath, err := filepath.Abs(picturePath)
 	if err != nil {
-		http.Error(w, "Failed to get absolute path", http.StatusInternalServerError)
-		return
+		return fmt.Errorf("failed to get absolute path: %w", err)
 	}
 
 	// Print the path to the server logs
@@ -199,17 +207,8 @@ func displayPictureHandler(w http.ResponseWriter, r *http.Request) {
 	_, err = cmd.CombinedOutput()
 	if err != nil {
 		fmt.Println("Python error:", err)
-		return
+		return err
 	}
 
-	// scriptPath := "./image.py"
-
-	// cmd := exec.Command(pythonPath, scriptPath, "--file", picturePath)
-	// if err := cmd.Run(); err != nil {
-	// 	http.Error(w, "Failed to run image.py", http.StatusInternalServerError)
-	// 	println(err.Error())
-	// 	return
-	// }
-
-	w.Write([]byte("Display successful"))
+	return nil
 }
