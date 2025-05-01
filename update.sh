@@ -1,9 +1,7 @@
-#!bin/bash
+#!/bin/bash
 
+echo "Building binary..."
 GOOS=linux GOARCH=arm GOARM=6 go build -o smartframe
-
-# ssh into epaper, stop the smartframe service, copy the binary to the device, start the service
-
 echo "Copying binary..."
 scp smartframe epaper:~/smartframe
 echo "Stopping service..."

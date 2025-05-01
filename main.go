@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 
 	"github.com/disintegration/imaging"
 )
@@ -23,7 +24,16 @@ var imagePy string
 //go:embed index.html
 var indexHTML []byte
 
+// Global variable to store picture list with mutex for safe concurrent access
+var (
+	pictureList []string
+	pictureMux  sync.RWMutex
+)
+
 func main() {
+	// Initialize picture list on startup
+	updatePictureList()
+
 	// Serve embedded index.html at "/"
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -49,13 +59,12 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-// listPicturesHandler returns a list of all pictures in the pictures directory
-func listPicturesHandler(w http.ResponseWriter, r *http.Request) {
+// updatePictureList reads the pictures directory and updates the global pictureList
+func updatePictureList() error {
 	picturesDir := "./static"
 	entries, err := os.ReadDir(picturesDir)
 	if err != nil {
-		http.Error(w, "Failed to read pictures directory", http.StatusInternalServerError)
-		return
+		return fmt.Errorf("failed to read pictures directory: %w", err)
 	}
 
 	var files []string
@@ -64,6 +73,28 @@ func listPicturesHandler(w http.ResponseWriter, r *http.Request) {
 			files = append(files, entry.Name())
 		}
 	}
+
+	// Update the global picture list with write lock
+	pictureMux.Lock()
+	pictureList = files
+	pictureMux.Unlock()
+
+	return nil
+}
+
+// listPicturesHandler returns the current list of pictures
+func listPicturesHandler(w http.ResponseWriter, r *http.Request) {
+	// Update the picture list to ensure it's current
+	if err := updatePictureList(); err != nil {
+		http.Error(w, "Failed to update pictures list", http.StatusInternalServerError)
+		return
+	}
+
+	// Get a read lock on the picture list
+	pictureMux.RLock()
+	files := pictureList
+	pictureMux.RUnlock()
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(files)
 }
@@ -106,6 +137,9 @@ func uploadPictureHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to save image", http.StatusInternalServerError)
 		return
 	}
+
+	// Update the picture list after adding a new picture
+	updatePictureList()
 
 	w.Write([]byte("Upload and aspect-ratio padding successful"))
 }
@@ -164,6 +198,9 @@ func deletePictureHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Update the picture list after deleting a picture
+	updatePictureList()
+
 	w.Write([]byte("Delete successful"))
 }
 
@@ -180,7 +217,20 @@ func displayPictureHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := displayPicture(name); err != nil {
+	// Get the picture index from the global picture list
+	index := -1
+	for i, p := range pictureList {
+		if p == name {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		http.Error(w, "Picture not found", http.StatusNotFound)
+		return
+	}
+
+	if err := displayPicture(index); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -188,9 +238,10 @@ func displayPictureHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Display successful"))
 }
 
-func displayPicture(name string) error {
-	// Create the full path to the picture
-	picturePath := filepath.Join("static", filepath.Base(name))
+func displayPicture(index int) error {
+
+	// Get the picture path from the global picture list
+	picturePath := filepath.Join("static", pictureList[index])
 
 	absPath, err := filepath.Abs(picturePath)
 	if err != nil {
