@@ -1,3 +1,0 @@
-#!bin/bash
-
-GOOS=linux GOARCH=arm GOARM=6 go build -o smartframe

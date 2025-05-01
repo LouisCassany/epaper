@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Picture Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Toast container styles */
+        #toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        /* Toast animation */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            to {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+        }
+
+        .toast {
+            animation: fadeIn 0.3s ease-out forwards;
+            min-width: 250px;
+            max-width: 350px;
+        }
+
+        .toast.hiding {
+            animation: fadeOut 0.3s ease-in forwards;
+        }
+
+        /* Spinner animation */
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .spinner {
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid currentColor;
+            border-radius: 50%;
+            border-right-color: transparent;
+            margin-right: 0.25rem;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 text-gray-800 min-h-screen">
+    <div class="container mx-auto px-4 py-6">
+        <h1 class="text-3xl font-bold mb-6 text-center">📷 Picture Manager</h1>
+
+        <!-- Upload Form -->
+        <form id="uploadForm"
+            class="bg-white p-6 rounded-lg shadow-md mb-8 flex flex-col sm:flex-row items-center gap-4">
+            <input type="file" name="picture" accept="image/*" required
+                class="block w-full sm:w-auto border rounded px-3 py-2" />
+            <button id="uploadButton" type="submit"
+                class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full sm:max-w-xs">Upload</button>
+        </form>
+
+        <!-- Picture List -->
+        <div id="gallery" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6"></div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <script>
+        const form = document.getElementById("uploadForm");
+        const uploadButton = document.getElementById("uploadButton");
+        const gallery = document.getElementById("gallery");
+        const toastContainer = document.getElementById("toast-container");
+
+        // Toast notification function
+        function showToast(message, type = 'info') {
+            const toast = document.createElement("div");
+
+            // Set appropriate styles based on type
+            let bgColor, textColor, icon;
+            switch (type) {
+                case 'success':
+                    bgColor = 'bg-green-500';
+                    textColor = 'text-white';
+                    icon = '✅';
+                    break;
+                case 'error':
+                    bgColor = 'bg-red-500';
+                    textColor = 'text-white';
+                    icon = '❌';
+                    break;
+                case 'info':
+                default:
+                    bgColor = 'bg-blue-500';
+                    textColor = 'text-white';
+                    icon = 'ℹ️';
+            }
+
+            toast.className = `toast ${bgColor} ${textColor} p-4 rounded-lg shadow-lg flex items-start`;
+            toast.innerHTML = `
+                <div class="mr-2">${icon}</div>
+                <div class="flex-1">${message}</div>
+                <button class="ml-2 text-white hover:text-gray-200">×</button>
+            `;
+
+            // Add to container
+            toastContainer.appendChild(toast);
+
+            // Close button functionality
+            const closeButton = toast.querySelector('button');
+            closeButton.addEventListener('click', () => {
+                removeToast(toast);
+            });
+
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                removeToast(toast);
+            }, 5000);
+        }
+
+        function removeToast(toast) {
+            // Add hiding class for animation
+            toast.classList.add('hiding');
+
+            // Remove from DOM after animation completes
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }
+
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+
+            // Disable button and show spinner
+            const originalButtonText = uploadButton.textContent;
+            uploadButton.disabled = true;
+            uploadButton.innerHTML = `<span class="spinner"></span><span>Uploading...</span>`;
+            uploadButton.classList.add("opacity-70");
+
+            try {
+                const res = await fetch("/upload-picture", {
+                    method: "POST",
+                    body: formData,
+                });
+
+                if (res.ok) {
+                    showToast(await res.text(), 'success');
+                } else {
+                    showToast(`Upload failed: ${await res.text()}`, 'error');
+                }
+
+                form.reset();
+                loadPictures();
+            } catch (err) {
+                showToast(`Error: ${err.message}`, 'error');
+            } finally {
+                // Restore button state
+                uploadButton.disabled = false;
+                uploadButton.innerHTML = originalButtonText;
+                uploadButton.classList.remove("opacity-70");
+            }
+        });
+
+        async function loadPictures() {
+            gallery.innerHTML = "";
+            try {
+                const res = await fetch("/list-pictures");
+                const files = await res.json();
+
+                for (const file of files) {
+                    const card = document.createElement("div");
+                    card.className = "rounded-lg shadow-md overflow-hidden";
+
+                    const img = document.createElement("img");
+                    img.src = "/pictures/" + file;
+                    img.alt = file;
+                    img.className = "w-full h-48 object-contain";
+
+                    const footer = document.createElement("div");
+                    footer.className = "p-4 flex justify-between items-center";
+
+                    const name = document.createElement("span");
+                    name.className = "text-sm truncate";
+                    name.textContent = file;
+
+                    const buttonContainer = document.createElement("div");
+                    buttonContainer.className = "flex gap-2";
+
+                    const displayBtn = document.createElement("button");
+                    displayBtn.innerHTML = `<span>📺 Display</span>`;
+                    displayBtn.className = "text-blue-600 hover:underline text-sm";
+                    displayBtn.onclick = async () => {
+                        // Prevent button from being clicked again while processing
+                        if (displayBtn.disabled) return;
+
+                        // Add spinner and disable button
+                        displayBtn.disabled = true;
+                        const originalContent = displayBtn.innerHTML;
+                        displayBtn.innerHTML = `<span class="spinner"></span><span>Processing...</span>`;
+                        displayBtn.classList.add("opacity-70");
+
+                        try {
+                            const res = await fetch("/display-picture?name=" + encodeURIComponent(file), {
+                                method: "GET",
+                            });
+                            const message = await res.text();
+                            showToast(message, 'info');
+                        } catch (err) {
+                            showToast(`Error: ${err.message}`, 'error');
+                        } finally {
+                            // Restore button state
+                            displayBtn.disabled = false;
+                            displayBtn.innerHTML = originalContent;
+                            displayBtn.classList.remove("opacity-70");
+                        }
+                    };
+
+                    const delBtn = document.createElement("button");
+                    delBtn.textContent = "🗑 Delete";
+                    delBtn.className = "text-red-600 hover:underline text-sm";
+                    delBtn.onclick = async () => {
+                        try {
+                            const res = await fetch("/delete-picture?name=" + encodeURIComponent(file), {
+                                method: "DELETE",
+                            });
+
+                            if (res.ok) {
+                                showToast(await res.text(), 'success');
+                                loadPictures();
+                            } else {
+                                showToast(`Delete failed: ${await res.text()}`, 'error');
+                            }
+                        } catch (err) {
+                            showToast(`Error: ${err.message}`, 'error');
+                        }
+                    };
+
+                    buttonContainer.append(displayBtn, delBtn);
+                    footer.append(name, buttonContainer);
+                    card.append(img, footer);
+                    gallery.append(card);
+                }
+
+                if (files.length === 0) {
+                    gallery.innerHTML = `<div class="col-span-full text-center text-gray-500 py-12">No pictures found. Upload some!</div>`;
+                }
+            } catch (err) {
+                showToast(`Error loading pictures: ${err.message}`, 'error');
+                gallery.innerHTML = `<div class="col-span-full text-center text-red-500 py-12">Failed to load pictures</div>`;
+            }
+        }
+
+        loadPictures();
+    </script>
+</body>
+
+</html>

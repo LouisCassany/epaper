@@ -20,10 +20,23 @@ import (
 //go:embed image.py
 var imagePy string
 
+//go:embed index.html
+var indexHTML []byte
+
 func main() {
-	// Set up file server for static content
+	// Serve embedded index.html at "/"
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html")
+		w.Write(indexHTML)
+	})
+
+	// Serve /static/ files from disk
 	fs := http.FileServer(http.Dir("./static"))
-	http.Handle("/", fs)
+	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
 	// Register API endpoints
 	http.HandleFunc("/list-pictures", listPicturesHandler)
