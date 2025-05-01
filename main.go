@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	"io"
@@ -14,6 +16,9 @@ import (
 
 	"github.com/disintegration/imaging"
 )
+
+//go:embed image.py
+var imagePy string
 
 func main() {
 	// Set up file server for static content
@@ -165,7 +170,6 @@ func displayPictureHandler(w http.ResponseWriter, r *http.Request) {
 	// Create the full path to the picture
 	picturePath := filepath.Join("static", "pictures", filepath.Base(name))
 
-	// Get absolute path for demonstration purposes
 	absPath, err := filepath.Abs(picturePath)
 	if err != nil {
 		http.Error(w, "Failed to get absolute path", http.StatusInternalServerError)
@@ -176,15 +180,23 @@ func displayPictureHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Displaying picture: %s", absPath)
 
 	pythonPath := "/home/louis/.virtualenvs/pimoroni/bin/python"
+	cmd := exec.Command(pythonPath, "-", "--file", absPath)
+	cmd.Stdin = bytes.NewBufferString(imagePy)
 
-	scriptPath := "./static/image.py"
-
-	cmd := exec.Command(pythonPath, scriptPath, "--file", picturePath)
-	if err := cmd.Run(); err != nil {
-		http.Error(w, "Failed to run image.py", http.StatusInternalServerError)
-		println(err.Error())
+	_, err = cmd.CombinedOutput()
+	if err != nil {
+		fmt.Println("Python error:", err)
 		return
 	}
+
+	// scriptPath := "./image.py"
+
+	// cmd := exec.Command(pythonPath, scriptPath, "--file", picturePath)
+	// if err := cmd.Run(); err != nil {
+	// 	http.Error(w, "Failed to run image.py", http.StatusInternalServerError)
+	// 	println(err.Error())
+	// 	return
+	// }
 
 	w.Write([]byte("Display successful"))
 }
