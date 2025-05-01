@@ -203,12 +203,12 @@
 
                 for (const file of files) {
                     const card = document.createElement("div");
-                    card.className = "bg-white rounded-lg shadow-md overflow-hidden";
+                    card.className = "rounded-lg shadow-md overflow-hidden";
 
                     const img = document.createElement("img");
                     img.src = "/pictures/" + file;
                     img.alt = file;
-                    img.className = "w-full h-48 object-cover";
+                    img.className = "w-full h-48 object-contain";
 
                     const footer = document.createElement("div");
                     footer.className = "p-4 flex justify-between items-center";
