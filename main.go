@@ -14,9 +14,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/disintegration/imaging"
 )
+
+var dev = false
 
 //go:embed image.py
 var imagePy string
@@ -26,13 +29,18 @@ var indexHTML []byte
 
 // Global variable to store picture list with mutex for safe concurrent access
 var (
-	pictureList []string
-	pictureMux  sync.RWMutex
+	pictureList   []string
+	pictureMux    sync.RWMutex
+	currentPic    int
+	currentPicMux sync.RWMutex
+	lastRotation  time.Time
+	rotationTime  = 2 * time.Hour
 )
 
 func main() {
 	// Initialize picture list on startup
 	updatePictureList()
+	startPictureRotation()
 
 	// Serve embedded index.html at "/"
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -239,6 +247,13 @@ func displayPictureHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func displayPicture(index int) error {
+	if dev {
+		currentPicMux.Lock()
+		currentPic = index
+		currentPicMux.Unlock()
+		fmt.Println("Displaying picture:", pictureList[index], index)
+		return nil
+	}
 
 	// Get the picture path from the global picture list
 	picturePath := filepath.Join("static", pictureList[index])
@@ -261,5 +276,41 @@ func displayPicture(index int) error {
 		return err
 	}
 
+	currentPicMux.Lock()
+	currentPic = index
+	currentPicMux.Unlock()
 	return nil
+}
+
+func startPictureRotation() {
+	go func() {
+		for {
+			now := time.Now()
+			hour := now.Hour()
+
+			if hour >= 8 && hour <= 20 {
+				if now.Sub(lastRotation) >= rotationTime {
+					pictureMux.RLock()
+					count := len(pictureList)
+					pictureMux.RUnlock()
+
+					if count > 0 {
+						currentPicMux.Lock()
+						index := (currentPic + 1) % count
+						currentPic = index
+						currentPicMux.Unlock()
+
+						if err := displayPicture(index); err != nil {
+							log.Printf("Failed to display picture: %v", err)
+						} else {
+							log.Printf("Rotated to picture #%d: %s", index, pictureList[index])
+							lastRotation = now
+						}
+					}
+				}
+			}
+
+			time.Sleep(10 * time.Minute)
+		}
+	}()
 }
