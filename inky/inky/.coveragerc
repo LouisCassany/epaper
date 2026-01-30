@@ -1,0 +1,6 @@
+[run]
+source = inky
+omit =
+    .tox/*
+relative_files = True
+data_file = .coverage
