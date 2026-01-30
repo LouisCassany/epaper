@@ -163,6 +163,14 @@ func processImageWithAspectRatio(imageData []byte) (image.Image, error) {
 	srcW := srcBounds.Dx()
 	srcH := srcBounds.Dy()
 
+	// check if the image is in portrait mode and rotate it if so
+	if srcW < srcH {
+		srcImg = imaging.Rotate(srcImg, 90, color.Transparent)
+		srcBounds = srcImg.Bounds()
+		srcW = srcBounds.Dx()
+		srcH = srcBounds.Dy()
+	}
+
 	targetAspect := 800.0 / 480.0
 	srcAspect := float64(srcW) / float64(srcH)
 

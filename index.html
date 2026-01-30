@@ -103,28 +103,13 @@
         const gallery = document.getElementById("gallery");
         const toastContainer = document.getElementById("toast-container");
 
-        // Toast notification function
         function showToast(message, type = 'info') {
             const toast = document.createElement("div");
-
-            // Set appropriate styles based on type
             let bgColor, textColor, icon;
             switch (type) {
-                case 'success':
-                    bgColor = 'bg-green-500';
-                    textColor = 'text-white';
-                    icon = '✅';
-                    break;
-                case 'error':
-                    bgColor = 'bg-red-500';
-                    textColor = 'text-white';
-                    icon = '❌';
-                    break;
-                case 'info':
-                default:
-                    bgColor = 'bg-blue-500';
-                    textColor = 'text-white';
-                    icon = 'ℹ️';
+                case 'success': bgColor = 'bg-green-500'; textColor = 'text-white'; icon = '✅'; break;
+                case 'error': bgColor = 'bg-red-500'; textColor = 'text-white'; icon = '❌'; break;
+                default: bgColor = 'bg-blue-500'; textColor = 'text-white'; icon = 'ℹ️';
             }
 
             toast.className = `toast ${bgColor} ${textColor} p-4 rounded-lg shadow-lg flex items-start`;
@@ -134,64 +119,37 @@
                 <button class="ml-2 text-white hover:text-gray-200">×</button>
             `;
 
-            // Add to container
             toastContainer.appendChild(toast);
-
-            // Close button functionality
-            const closeButton = toast.querySelector('button');
-            closeButton.addEventListener('click', () => {
-                removeToast(toast);
-            });
-
-            // Auto-remove after 5 seconds
-            setTimeout(() => {
-                removeToast(toast);
-            }, 5000);
+            toast.querySelector('button').addEventListener('click', () => removeToast(toast));
+            setTimeout(() => removeToast(toast), 5000);
         }
 
         function removeToast(toast) {
-            // Add hiding class for animation
             toast.classList.add('hiding');
-
-            // Remove from DOM after animation completes
-            setTimeout(() => {
-                if (toast.parentNode) {
-                    toast.parentNode.removeChild(toast);
-                }
-            }, 300);
+            setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 300);
         }
 
         form.addEventListener("submit", async (e) => {
             e.preventDefault();
             const formData = new FormData(form);
-
-            // Disable button and show spinner
             const originalButtonText = uploadButton.textContent;
             uploadButton.disabled = true;
             uploadButton.innerHTML = `<span class="spinner"></span><span>Uploading...</span>`;
-            uploadButton.classList.add("opacity-70");
 
             try {
-                const res = await fetch("/upload-picture", {
-                    method: "POST",
-                    body: formData,
-                });
-
+                const res = await fetch("/upload-picture", { method: "POST", body: formData });
                 if (res.ok) {
                     showToast(await res.text(), 'success');
+                    form.reset();
+                    loadPictures();
                 } else {
                     showToast(`Upload failed: ${await res.text()}`, 'error');
                 }
-
-                form.reset();
-                loadPictures();
             } catch (err) {
                 showToast(`Error: ${err.message}`, 'error');
             } finally {
-                // Restore button state
                 uploadButton.disabled = false;
                 uploadButton.innerHTML = originalButtonText;
-                uploadButton.classList.remove("opacity-70");
             }
         });
 
@@ -203,49 +161,47 @@
 
                 for (const file of files) {
                     const card = document.createElement("div");
-                    card.className = "rounded-lg shadow-md overflow-hidden";
+                    card.className = "bg-white rounded-lg shadow-md overflow-hidden flex flex-col";
+
+                    // --- IMAGE CONTAINER (Fixes the layout mess) ---
+                    const imgWrapper = document.createElement("div");
+                    imgWrapper.className = "w-full h-64 bg-gray-200 flex items-center justify-center overflow-hidden";
 
                     const img = document.createElement("img");
                     img.src = "/static/" + file;
                     img.alt = file;
-                    img.className = "w-full h-48 object-contain";
+                    // transform -rotate-90 handles the rotation
+                    // object-contain ensures the whole image is visible
+                    img.className = "max-w-full max-h-full transform rotate-90 object-contain";
+
+                    imgWrapper.appendChild(img);
+                    // -----------------------------------------------
 
                     const footer = document.createElement("div");
-                    footer.className = "p-4 flex justify-between items-center";
+                    footer.className = "p-4 flex justify-between items-center border-t";
 
                     const name = document.createElement("span");
-                    name.className = "text-sm truncate";
+                    name.className = "text-sm truncate mr-2";
                     name.textContent = file;
 
                     const buttonContainer = document.createElement("div");
-                    buttonContainer.className = "flex gap-2";
+                    buttonContainer.className = "flex gap-2 shrink-0";
 
                     const displayBtn = document.createElement("button");
                     displayBtn.innerHTML = `<span>📺 Display</span>`;
                     displayBtn.className = "text-blue-600 hover:underline text-sm";
                     displayBtn.onclick = async () => {
-                        // Prevent button from being clicked again while processing
-                        if (displayBtn.disabled) return;
-
-                        // Add spinner and disable button
                         displayBtn.disabled = true;
                         const originalContent = displayBtn.innerHTML;
-                        displayBtn.innerHTML = `<span class="spinner"></span><span>Processing...</span>`;
-                        displayBtn.classList.add("opacity-70");
-
+                        displayBtn.innerHTML = `<span class="spinner"></span>`;
                         try {
-                            const res = await fetch("/display-picture?name=" + encodeURIComponent(file), {
-                                method: "GET",
-                            });
-                            const message = await res.text();
-                            showToast(message, 'info');
+                            const res = await fetch("/display-picture?name=" + encodeURIComponent(file));
+                            showToast(await res.text(), 'info');
                         } catch (err) {
                             showToast(`Error: ${err.message}`, 'error');
                         } finally {
-                            // Restore button state
                             displayBtn.disabled = false;
                             displayBtn.innerHTML = originalContent;
-                            displayBtn.classList.remove("opacity-70");
                         }
                     };
 
@@ -253,16 +209,12 @@
                     delBtn.textContent = "🗑 Delete";
                     delBtn.className = "text-red-600 hover:underline text-sm";
                     delBtn.onclick = async () => {
+                        if (!confirm("Delete this picture?")) return;
                         try {
-                            const res = await fetch("/delete-picture?name=" + encodeURIComponent(file), {
-                                method: "DELETE",
-                            });
-
+                            const res = await fetch("/delete-picture?name=" + encodeURIComponent(file), { method: "DELETE" });
                             if (res.ok) {
                                 showToast(await res.text(), 'success');
                                 loadPictures();
-                            } else {
-                                showToast(`Delete failed: ${await res.text()}`, 'error');
                             }
                         } catch (err) {
                             showToast(`Error: ${err.message}`, 'error');
@@ -271,16 +223,15 @@
 
                     buttonContainer.append(displayBtn, delBtn);
                     footer.append(name, buttonContainer);
-                    card.append(img, footer);
+                    card.append(imgWrapper, footer);
                     gallery.append(card);
                 }
 
                 if (files.length === 0) {
-                    gallery.innerHTML = `<div class="col-span-full text-center text-gray-500 py-12">No pictures found. Upload some!</div>`;
+                    gallery.innerHTML = `<div class="col-span-full text-center text-gray-500 py-12">No pictures found.</div>`;
                 }
             } catch (err) {
                 showToast(`Error loading pictures: ${err.message}`, 'error');
-                gallery.innerHTML = `<div class="col-span-full text-center text-red-500 py-12">Failed to load pictures</div>`;
             }
         }
 
